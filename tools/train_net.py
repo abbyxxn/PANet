@@ -31,6 +31,7 @@ from utils.logging import log_stats
 from utils.timer import Timer
 from utils.training_stats import TrainingStats
 
+
 # OpenCL may be enabled by default in OpenCV3; disable it because it's not
 # thread safe and causes unwanted GPU memory allocations.
 cv2.ocl.setUseOpenCL(False)
@@ -157,6 +158,9 @@ def main():
     elif args.dataset == "keypoints_coco2017":
         cfg.TRAIN.DATASETS = ('keypoints_coco_2017_train',)
         cfg.MODEL.NUM_CLASSES = 2
+    elif args.dataset == "cityscapes":
+        cfg.TRAIN.DATASETS = ('cityscapes_fine_instanceonly_seg_train')
+        cfg.MODEL.NUM_CLASSES = 8
     else:
         raise ValueError("Unexpected args.dataset: {}".format(args.dataset))
 
@@ -323,9 +327,8 @@ def main():
                 args.lr_decay_epochs.pop(0)
                 net_utils.decay_learning_rate(optimizer, lr, cfg.SOLVER.GAMMA)
                 lr *= cfg.SOLVER.GAMMA
-
-            for args.step, input_data in zip(range(args.start_iter, iters_per_epoch), dataloader):
-
+            for args.step in range(args.start_iter, iters_per_epoch):
+                input_data = next(iter(dataloader))
                 for key in input_data:
                     if key != 'roidb': # roidb is a list of ndarrays with inconsistent length
                         input_data[key] = list(map(Variable, input_data[key]))

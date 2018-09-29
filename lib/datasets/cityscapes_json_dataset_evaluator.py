@@ -42,9 +42,9 @@ def evaluate_masks(
     use_salt=True,
     cleanup=False
 ):
-    if cfg.CLUSTER.ON_CLUSTER:
-        # On the cluster avoid saving these files in the job directory
-        output_dir = '/tmp'
+#     if cfg.CLUSTER.ON_CLUSTER:
+#         # On the cluster avoid saving these files in the job directory
+#         output_dir = '/tmp'
     res_file = os.path.join(
         output_dir, 'segmentations_' + json_dataset.name + '_results')
     if use_salt:
@@ -92,5 +92,5 @@ def evaluate_masks(
                     # save mask
                     cv2.imwrite(os.path.join(output_dir, pngname), mask * 255)
     logger.info('Evaluating...')
-    cityscapes_eval.main([])
+    cityscapes_eval.main()
     return None

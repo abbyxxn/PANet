@@ -7,6 +7,7 @@ import pickle
 import resource
 import traceback
 import logging
+import setproctitle
 from collections import defaultdict
 
 import numpy as np
@@ -156,6 +157,9 @@ def main():
     elif args.dataset == "keypoints_coco2017":
         cfg.TRAIN.DATASETS = ('keypoints_coco_2017_train',)
         cfg.MODEL.NUM_CLASSES = 2
+    elif args.dataset == 'cityscapes':
+        cfg.TRAIN.DATASETS = ('cityscapes_fine_instanceonly_seg_train')
+        cfg.MODEL.NUM_CLASSES = 9
     else:
         raise ValueError("Unexpected args.dataset: {}".format(args.dataset))
 
@@ -245,16 +249,26 @@ def main():
         roidb,
         cfg.MODEL.NUM_CLASSES,
         training=True)
-    dataloader = torch.utils.data.DataLoader(
+    train_data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_sampler=batchSampler,
         num_workers=cfg.DATA_LOADER.NUM_THREADS,
         collate_fn=collate_minibatch)
-    dataiterator = iter(dataloader)
+    train_data_iterator = iter(train_data_loader)
+
+    val_data_loader = torch.utils.data.DataLoader(
+        dataset,
+        batch_sampler=batchSampler,
+        num_workers=cfg.DATA_LOADER.NUM_THREADS,
+        collate_fn=collate_minibatch)
+    val_data_iterator = iter(train_data_loader)
 
     ### Model ###
     maskRCNN = Generalized_RCNN()
-
+    # panet_weight = maskRCNN.state_dict()
+    # torch.save(maskRCNN.state_dict(), '/home/abby/Repositories/PANet/data/panet_weight_state_dict')
+    maskRCNN.load_state_dict(torch.load('/home/abby/Repositories/PANet/data/pretrained_model'
+                                        '/coco_pretrained_weight_convert_for_cityscapes.pth')['model'])
     if cfg.CUDA:
         maskRCNN.cuda()
 
@@ -343,6 +357,9 @@ def main():
     output_dir = misc_utils.get_output_dir(args, args.run_name)
     args.cfg_filename = os.path.basename(args.cfg_file)
 
+    ### Set process name
+    setproctitle.setproctitle(args.run_name)
+
     if not args.no_save:
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
@@ -412,10 +429,10 @@ def main():
             optimizer.zero_grad()
             for inner_iter in range(args.iter_size):
                 try:
-                    input_data = next(dataiterator)
+                    input_data = next(train_data_iterator)
                 except StopIteration:
-                    dataiterator = iter(dataloader)
-                    input_data = next(dataiterator)
+                    train_data_iterator = iter(train_data_loader)
+                    input_data = next(train_data_iterator)
 
                 for key in input_data:
                     if key != 'roidb': # roidb is a list of ndarrays with inconsistent length
@@ -438,7 +455,7 @@ def main():
         save_ckpt(output_dir, args, step, train_size, maskRCNN, optimizer)
 
     except (RuntimeError, KeyboardInterrupt):
-        del dataiterator
+        del train_data_iterator
         logger.info('Save ckpt on exception ...')
         save_ckpt(output_dir, args, step, train_size, maskRCNN, optimizer)
         logger.info('Save ckpt done.')

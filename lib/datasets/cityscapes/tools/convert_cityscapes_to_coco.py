@@ -84,8 +84,8 @@ def convert_cityscapes_instance_only(
     """Convert from cityscapes format to COCO instance seg format - polygons"""
     sets = [
         'gtFine_val',
-        # 'gtFine_train',
-        # 'gtFine_test',
+        'gtFine_train',
+        'gtFine_test',
 
         # 'gtCoarse_train',
         # 'gtCoarse_val',
@@ -93,8 +93,8 @@ def convert_cityscapes_instance_only(
     ]
     ann_dirs = [
         'gtFine_trainvaltest/gtFine/val',
-        # 'gtFine_trainvaltest/gtFine/train',
-        # 'gtFine_trainvaltest/gtFine/test',
+        'gtFine_trainvaltest/gtFine/train',
+        'gtFine_trainvaltest/gtFine/test',
 
         # 'gtCoarse/train',
         # 'gtCoarse/train_extra',
@@ -145,7 +145,7 @@ def convert_cityscapes_instance_only(
                     images.append(image)
 
                     fullname = os.path.join(root, image['seg_file_name'])
-                    objects = cs.instances2dict_with_polygons(
+                    objects = cs.instances2dict(
                         [fullname], verbose=False)[fullname]
 
                     for object_cls in objects:
@@ -188,7 +188,7 @@ def convert_cityscapes_instance_only(
         print("Num categories: %s" % len(categories))
         print("Num images: %s" % len(images))
         print("Num annotations: %s" % len(annotations))
-        with open(os.path.join(out_dir, json_name % data_set), 'wb') as outfile:
+        with open(os.path.join(out_dir, json_name % data_set), 'w') as outfile:
             outfile.write(json.dumps(ann_dict))
 
 
