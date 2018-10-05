@@ -80,6 +80,53 @@ def combined_roidb_for_training(dataset_names, proposal_files):
 
     return roidb, ratio_list, ratio_index
 
+def combined_roidb_for_validation(dataset_names, proposal_files):
+    """Load and concatenate roidbs for one or more datasets, along with optional
+    object proposals. The roidb entries are then prepared for use in training,
+    which involves caching certain types of metadata for each roidb entry.
+    """
+    def get_roidb(dataset_name, proposal_file):
+        ds = JsonDataset(dataset_name)
+        roidb = ds.get_roidb(
+            gt=True,
+            proposal_file=proposal_file,
+            crowd_filter_thresh=cfg.TRAIN.CROWD_FILTER_THRESH
+        )
+        if cfg.VALIDATION.USE_FLIPPED:
+            logger.info('Appending horizontally-flipped training examples...')
+            extend_with_flipped_entries(roidb, ds)
+        logger.info('Loaded dataset: {:s}'.format(ds.name))
+        return roidb
+
+    if isinstance(dataset_names, six.string_types):
+        dataset_names = (dataset_names, )
+    if isinstance(proposal_files, six.string_types):
+        proposal_files = (proposal_files, )
+    if len(proposal_files) == 0:
+        proposal_files = (None, ) * len(dataset_names)
+    assert len(dataset_names) == len(proposal_files)
+    roidbs = [get_roidb(*args) for args in zip(dataset_names, proposal_files)]
+    roidb = roidbs[0]
+    for r in roidbs[1:]:
+        roidb.extend(r)
+    roidb = filter_for_training(roidb)
+
+    if cfg.TRAIN.ASPECT_GROUPING or cfg.TRAIN.ASPECT_CROPPING:
+        logger.info('Computing image aspect ratios and ordering the ratios...')
+        ratio_list, ratio_index = rank_for_training(roidb)
+        logger.info('done')
+    else:
+        ratio_list, ratio_index = None, None
+
+    logger.info('Computing bounding-box regression targets...')
+    add_bbox_regression_targets(roidb)
+    logger.info('done')
+
+    _compute_and_log_stats(roidb)
+
+    return roidb, ratio_list, ratio_index
+
+
 
 def extend_with_flipped_entries(roidb, dataset):
     """Flip each entry in the given roidb and return a new roidb that is the
