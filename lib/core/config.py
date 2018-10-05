@@ -38,6 +38,8 @@ __C.TRAIN = AttrDict()
 # If multiple datasets are listed, the model is trained on their union
 __C.TRAIN.DATASETS = ()
 
+#__C.TRAIN.DATASET_SIZE = 2975
+
 # Scales to use during training
 # Each scale is the pixel size of an image's shortest side
 # If multiple scales are listed, then one is selected uniformly at random for
@@ -85,7 +87,7 @@ __C.TRAIN.PROPOSAL_FILES = ()
 # Snapshot (model checkpoint) period
 # Divide by NUM_GPUS to determine actual period (e.g., 20000/8 => 2500 iters)
 # to allow for linear training schedule scaling
-__C.TRAIN.SNAPSHOT_ITERS = 20000
+__C.TRAIN.SNAPSHOT_ITERS = 200
 
 # Normalize the targets (subtract empirical mean, divide by empirical stddev)
 __C.TRAIN.BBOX_NORMALIZE_TARGETS = True
@@ -159,6 +161,145 @@ __C.TRAIN.GT_MIN_AREA = -1
 # Freeze the backbone architecture during training if set to True
 __C.TRAIN.FREEZE_CONV_BODY = False
 
+
+# ---------------------------------------------------------------------------- #
+# VALIDATION options
+# ---------------------------------------------------------------------------- #
+__C.VALIDATION = AttrDict()
+
+# Datasets to train on
+# Available dataset list: datasets.dataset_catalog.DATASETS.keys()
+# If multiple datasets are listed, the model is trained on their union
+__C.VALIDATION.DATASETS = ()
+
+
+
+#__C.VALIDATION.VALON = False
+
+#__C.VALIDATION.DATASET_SIZE = 500
+
+#__C.VALIDATION.NUMBER_VAL_ITER = 62
+
+# Scales to use during training
+# Each scale is the pixel size of an image's shortest side
+# If multiple scales are listed, then one is selected uniformly at random for
+# each training image (i.e., scale jitter data augmentation)
+__C.VALIDATION.SCALES = (600, )
+
+# Max pixel size of the longest side of a scaled input image
+__C.VALIDATION.MAX_SIZE = 1000
+
+# Images *per GPU* in the training minibatch
+# Total images per minibatch = TRAIN.IMS_PER_BATCH * NUM_GPUS
+__C.VALIDATION.IMS_PER_BATCH = 2
+
+# RoI minibatch size *per image* (number of regions of interest [ROIs])
+# Total number of RoIs per training minibatch =
+#   TRAIN.BATCH_SIZE_PER_IM * TRAIN.IMS_PER_BATCH * NUM_GPUS
+# E.g., a common configuration is: 512 * 2 * 8 = 8192
+__C.VALIDATION.BATCH_SIZE_PER_IM = 64
+
+# Fraction of minibatch that is labeled foreground (i.e. class > 0)
+__C.VALIDATION.FG_FRACTION = 0.25
+
+# Overlap threshold for a ROI to be considered foreground (if >= FG_THRESH)
+__C.VALIDATION.FG_THRESH = 0.5
+
+# Overlap threshold for a ROI to be considered background (class = 0 if
+# overlap in [LO, HI))
+__C.VALIDATION.BG_THRESH_HI = 0.5
+__C.VALIDATION.BG_THRESH_LO = 0.0
+
+# Use horizontally-flipped images during training?
+__C.VALIDATION.USE_FLIPPED = False
+
+# Overlap required between a ROI and ground-truth box in order for that ROI to
+# be used as a bounding-box regression training example
+__C.VALIDATION.BBOX_THRESH = 0.5
+
+# Train using these proposals
+# During training, all proposals specified in the file are used (no limit is
+# applied)
+# Proposal files must be in correspondence with the datasets listed in
+# TRAIN.DATASETS
+__C.VALIDATION.PROPOSAL_FILES = ()
+
+# Snapshot (model checkpoint) period
+# Divide by NUM_GPUS to determine actual period (e.g., 20000/8 => 2500 iters)
+# to allow for linear training schedule scaling
+__C.VALIDATION.SNAPSHOT_ITERS = 20000
+
+# Normalize the targets (subtract empirical mean, divide by empirical stddev)
+__C.VALIDATION.BBOX_NORMALIZE_TARGETS = True
+# Deprecated (inside weights)
+__C.VALIDATION.BBOX_INSIDE_WEIGHTS = (1.0, 1.0, 1.0, 1.0)
+# Normalize the targets using "precomputed" (or made up) means and stdevs
+# (BBOX_NORMALIZE_TARGETS must also be True) (legacy)
+__C.VALIDATION.BBOX_NORMALIZE_TARGETS_PRECOMPUTED = False
+__C.VALIDATION.BBOX_NORMALIZE_MEANS = (0.0, 0.0, 0.0, 0.0)
+__C.VALIDATION.BBOX_NORMALIZE_STDS = (0.1, 0.1, 0.2, 0.2)
+
+# Make minibatches from images that have similar aspect ratios (i.e. both
+# tall and thin or both short and wide)
+# This feature is critical for saving memory (and makes training slightly
+# faster)
+__C.VALIDATION.ASPECT_GROUPING = True
+
+# Crop images that have too small or too large aspect ratio
+__C.VALIDATION.ASPECT_CROPPING = False
+__C.VALIDATION.ASPECT_HI = 2
+__C.VALIDATION.ASPECT_LO = 0.5
+
+# ---------------------------------------------------------------------------- #
+# RPN training options
+# ---------------------------------------------------------------------------- #
+
+# Minimum overlap required between an anchor and ground-truth box for the
+# (anchor, gt box) pair to be a positive example (IOU >= thresh ==> positive RPN
+# example)
+__C.VALIDATION.RPN_POSITIVE_OVERLAP = 0.7
+
+# Maximum overlap allowed between an anchor and ground-truth box for the
+# (anchor, gt box) pair to be a negative examples (IOU < thresh ==> negative RPN
+# example)
+__C.VALIDATION.RPN_NEGATIVE_OVERLAP = 0.3
+
+# Target fraction of foreground (positive) examples per RPN minibatch
+__C.VALIDATION.RPN_FG_FRACTION = 0.5
+
+# Total number of RPN examples per image
+__C.VALIDATION.RPN_BATCH_SIZE_PER_IM = 256
+
+# NMS threshold used on RPN proposals (used during end-to-end training with RPN)
+__C.VALIDATION.RPN_NMS_THRESH = 0.7
+
+# Number of top scoring RPN proposals to keep before applying NMS (per image)
+# When FPN is used, this is *per FPN level* (not total)
+__C.VALIDATION.RPN_PRE_NMS_TOP_N = 12000
+
+# Number of top scoring RPN proposals to keep after applying NMS (per image)
+# This is the total number of RPN proposals produced (for both FPN and non-FPN
+# cases)
+__C.VALIDATION.RPN_POST_NMS_TOP_N = 2000
+
+# Remove RPN anchors that go outside the image by RPN_STRADDLE_THRESH pixels
+# Set to -1 or a large value, e.g. 100000, to disable pruning anchors
+__C.VALIDATION.RPN_STRADDLE_THRESH = 0
+
+# Proposal height and width both need to be greater than RPN_MIN_SIZE
+# (at orig image scale; not scale used during training or inference)
+__C.VALIDATION.RPN_MIN_SIZE = 0
+
+# Filter proposals that are inside of crowd regions by CROWD_FILTER_THRESH
+# "Inside" is measured as: proposal-with-crowd intersection area divided by
+# proposal area
+__C.VALIDATION.CROWD_FILTER_THRESH = 0.7
+
+# Ignore ground-truth objects with area < this threshold
+__C.VALIDATION.GT_MIN_AREA = -1
+
+# Freeze the backbone architecture during training if set to True
+__C.VALIDATION.FREEZE_CONV_BODY = False
 
 # ---------------------------------------------------------------------------- #
 # Data loader options
