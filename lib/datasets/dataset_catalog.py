@@ -38,6 +38,31 @@ RAW_DIR = 'raw_dir'
 
 # Available datasets
 DATASETS = {
+    'kitti_fine_instanceonly_seg_train': {
+        IM_DIR:
+            _DATA_DIR + '/kitti/images',
+        ANN_FN:
+            _DATA_DIR + '/kitti/annotations/instancesonly_filtered_gtFine_train.json',
+        RAW_DIR:
+            _DATA_DIR + '/kitti/raw'
+    },
+    'kitti_fine_instanceonly_seg_val': {
+        IM_DIR:
+            _DATA_DIR + '/kitti/images',
+        # use filtered validation as there is an issue converting contours
+        ANN_FN:
+            _DATA_DIR + '/kitti/annotations/instancesonly_filtered_gtFine_val.json',
+        RAW_DIR:
+            _DATA_DIR + '/kitti/raw'
+    },
+    'kitti_fine_instanceonly_seg_test': {
+        IM_DIR:
+            _DATA_DIR + '/kitti/images',
+        ANN_FN:
+            _DATA_DIR + '/kitti/annotations/instancesonly_gtFine_test.json',
+        RAW_DIR:
+            _DATA_DIR + '/kitti/raw'
+    },
     'cityscapes_fine_instanceonly_seg_train': {
         IM_DIR:
             _DATA_DIR + '/cityscapes/images',
