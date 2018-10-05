@@ -158,7 +158,25 @@ def main():
         cfg.TRAIN.DATASETS = ('keypoints_coco_2017_train',)
         cfg.MODEL.NUM_CLASSES = 2
     elif args.dataset == 'cityscapes':
-        cfg.TRAIN.DATASETS = ('cityscapes_fine_instanceonly_seg_train')
+        cfg.TRAIN.DATASETS = ('cityscapes_fine_instanceonly_seg_train',)
+        cfg.MODEL.NUM_CLASSES = 9
+    elif args.dataset == 'kitti':
+        cfg.TRAIN.DATASETS = ('kitti_fine_instanceonly_seg_train',)
+        cfg.MODEL.NUM_CLASSES = 9
+    else:
+        raise ValueError("Unexpected args.dataset: {}".format(args.dataset))
+
+    if args.dataset == "coco2017":
+        cfg.VALIDATION.DATASETS = ('coco_2014_val',)
+        cfg.MODEL.NUM_CLASSES = 81
+    elif args.dataset == "keypoints_coco2017":
+        cfg.VALIDATION.DATASETS = ('keypoints_coco_2017_val',)
+        cfg.MODEL.NUM_CLASSES = 2
+    elif args.dataset == 'cityscapes':
+        cfg.VALIDATION.DATASETS = ('cityscapes_fine_instanceonly_seg_val',)
+        cfg.MODEL.NUM_CLASSES = 9
+    elif args.dataset == 'kitti':
+        cfg.VALIDATION.DATASETS = ('kitti_fine_instanceonly_seg_val',)
         cfg.MODEL.NUM_CLASSES = 9
     else:
         raise ValueError("Unexpected args.dataset: {}".format(args.dataset))
@@ -237,6 +255,17 @@ def main():
     logger.info('{:d} roidb entries'.format(roidb_size))
     logger.info('Takes %.2f sec(s) to construct roidb', timers['roidb'].average_time)
 
+    ### Validation Dataset ###
+    timers['roidb_validation'].tic()
+    roidb_validation, ratio_list_validation, ratio_index_validation = combined_roidb_for_training(
+        cfg.VALIDATION.DATASETS, cfg.VALIDATION.PROPOSAL_FILES)
+    timers['roidb_validation'].toc()
+    roidb_size_validation = len(roidb_validation)
+    logger.info('{:d} roidb_validation entries'.format(roidb_size_validation))
+    logger.info('Takes %.2f sec(s) to construct roidb_validation', timers['roidb_validation'].average_time)
+
+
+
     # Effective training sample size for one epoch
     train_size = roidb_size // args.batch_size * args.batch_size
 
@@ -256,12 +285,24 @@ def main():
         collate_fn=collate_minibatch)
     train_data_iterator = iter(train_data_loader)
 
+    # Effective validation sample size for one epoch
+    validation_size = roidb_size_validation // args.batch_size * args.batch_size
+
+    batchSampler_val = BatchSampler(
+        sampler=MinibatchSampler(ratio_list_validation, ratio_index_validation),
+        batch_size=args.batch_size,
+        drop_last=True
+    )
+    dataset_val = RoiDataLoader(
+        roidb_validation,
+        cfg.MODEL.NUM_CLASSES,
+        training=True)
     val_data_loader = torch.utils.data.DataLoader(
-        dataset,
-        batch_sampler=batchSampler,
+        dataset_val,
+        batch_sampler=batchSampler_val,
         num_workers=cfg.DATA_LOADER.NUM_THREADS,
         collate_fn=collate_minibatch)
-    val_data_iterator = iter(train_data_loader)
+    val_data_iterator = iter(val_data_loader)
 
     ### Model ###
     maskRCNN = Generalized_RCNN()
@@ -391,6 +432,10 @@ def main():
         args,
         args.disp_interval,
         tblogger if args.use_tfboard and not args.no_save else None)
+    validation_stats = TrainingStats(
+        args,
+        args.disp_interval,
+        tblogger if args.use_tfboard and not args.no_save else None)
     try:
         logger.info('Training starts !')
         step = args.start_step
@@ -427,25 +472,45 @@ def main():
 
             training_stats.IterTic()
             optimizer.zero_grad()
+            maskRCNN.train()
             for inner_iter in range(args.iter_size):
+
                 try:
                     input_data = next(train_data_iterator)
                 except StopIteration:
                     train_data_iterator = iter(train_data_loader)
                     input_data = next(train_data_iterator)
+                if (step + 1) % 10 == 0:
+                    try:
+                        input_data_validation = next(val_data_iterator)
+                    except StopIteration:
+                        val_data_iterator = iter(val_data_loader)
+                        input_data_validation = next(val_data_iterator)
 
                 for key in input_data:
                     if key != 'roidb': # roidb is a list of ndarrays with inconsistent length
                         input_data[key] = list(map(Variable, input_data[key]))
+                if (step + 1) % 10 == 0:
+                    for key in input_data_validation:
+                        if key != 'roidb': # roidb is a list of ndarrays with inconsistent length
+                            input_data_validation[key] = list(map(Variable, input_data_validation[key]))
 
                 net_outputs = maskRCNN(**input_data)
                 training_stats.UpdateIterStats(net_outputs, inner_iter)
                 loss = net_outputs['total_loss']
                 loss.backward()
+                if (step + 1) % 10 == 0:
+                    with torch.no_grad():
+                        maskRCNN.eval()
+                        net_outputs_validation = maskRCNN(**input_data_validation)
+                        validation_stats.UpdateIterStats(net_outputs_validation, inner_iter)
+                        #maskRCNN.train()
+
             optimizer.step()
             training_stats.IterToc()
 
             training_stats.LogIterStats(step, lr)
+            validation_stats.LogIterStats(step, lr)
 
             if (step+1) % CHECKPOINT_PERIOD == 0:
                 save_ckpt(output_dir, args, step, train_size, maskRCNN, optimizer)
@@ -456,6 +521,7 @@ def main():
 
     except (RuntimeError, KeyboardInterrupt):
         del train_data_iterator
+        del val_data_iterator
         logger.info('Save ckpt on exception ...')
         save_ckpt(output_dir, args, step, train_size, maskRCNN, optimizer)
         logger.info('Save ckpt done.')
